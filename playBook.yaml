@@ -1,0 +1,59 @@
+- name: "Playing with Ansible "
+  hosts: linux01
+  tasks:
+    - name: Initialize an empty list for our strings
+      set_fact:
+        my_strings: [ ]
+      run_once: true
+    - name: Starting a block
+      block:
+
+
+        - name: "Ensure wireless interfaces are disabled"
+          shell: nmcli radio all
+          register: "output"
+        - set_fact:
+            my_strings: "{{ my_strings + [ hostvars[item].output | combine({ 'host': item,'check_id':'cis 1.1.2' }) ] }}"
+          with_items: "{{ groups['linux01'] }}"
+
+
+        - name: Ensure IP forwarding is disabled
+          shell: sysctl net.ipv4.ip_forward
+          register: "output"
+        - set_fact:
+            my_strings: "{{ my_strings + [ hostvars[item].output | combine({ 'host': item }) ] }}"
+          with_items: "{{ groups['linux01'] }}"
+
+
+        - name: Ensure default deny firewall policy
+          become: true
+          shell: iptables -L
+          register: "output"
+        - set_fact:
+            my_strings: "{{ my_strings + [ hostvars[item].output | combine({ 'host': item }) ] }}"
+          with_items: "{{ groups['linux01'] }}"
+
+
+        - name: Ensure firewall rules exist for all open ports
+          shell: ss -4tuln
+          register: "output"
+        - set_fact:
+            my_strings: "{{ my_strings + [ hostvars[item].output | combine({ 'host': item }) ] }}"
+          with_items: "{{ groups['linux01'] }}"
+
+
+        - name: Ensure permissions on /etc/crontab are configured
+          shell:  stat /etc/crontab
+          register: "output"
+        - set_fact:
+            my_strings: "{{ my_strings + [ hostvars[item].output | combine({ 'host': item }) ] }}"
+          with_items: "{{ groups['linux01'] }}"
+
+    - name: Copy results locally to output file
+      copy:
+        content: "{{ my_strings | to_nice_json}}"
+        dest: "config.json"
+      delegate_to: localhost
+      run_once: true
+
+
